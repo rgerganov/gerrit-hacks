@@ -24,29 +24,32 @@ headers = {
     'Content-Type': 'application/json; charset=UTF-8',
 }
 
-body = {'jsonrpc': '2.0', 'method': 'changeDetail', 'params': [{'id' : 84933}], 'id':1 }
-body = json.dumps(body)
-response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
-data = json.loads(content)
+def retrieve_patchsets(change_id):
+    body = {'jsonrpc': '2.0', 'method': 'changeDetail', 'params': [{'id' : change_id}], 'id':1 }
+    body = json.dumps(body)
+    response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
+    data = json.loads(content)
+    return data['result']['patchSets']
 
-cid = data['result']['patchSets'][0]['id']
-print cid
+def retrieve_patchset_details(patchset_id):
+    body = {'jsonrpc': '2.0', 'method': 'patchSetDetail', 'params': [patchset_id], 'id':1 }
+    body = json.dumps(body)
+    response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
+    data = json.loads(content)
+    patches = [patch for patch in data['result']['patches'] if patch['nbrComments'] > 0]
+    return patches
 
+def retrieve_patch(patchset_id, patch_key):
+    args = {'context':10,'expandAllComments':False,'ignoreWhitespace':'N','intralineDifference':True,'lineLength':100,'manualReview':False,'retainHeader':False,'showLineEndings':True,'showTabs':True,'showWhitespaceErrors':True,'skipDeleted':False,'skipUncommented':False,'syntaxHighlighting':True,'tabSize':8}
+    body = {'jsonrpc': '2.0', 'method': 'patchScript', 'params': [patch_key, None, patchset_id, args], 'id':1 }
+    body = json.dumps(body)
+    response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/PatchDetailService', 'POST', body, headers)
+    data = json.loads(content)
+    return data
 
-body = {'jsonrpc': '2.0', 'method': 'patchSetDetail', 'params': [cid], 'id':1 }
-body = json.dumps(body)
-response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
-data = json.loads(content)
-
-pid = data['result']['patches'][2]['key']
-print pid
-print 'nbrComments', data['result']['patches'][2]['nbrComments']
-
-args = {'context':10,'expandAllComments':False,'ignoreWhitespace':'N','intralineDifference':True,'lineLength':100,'manualReview':False,'retainHeader':False,'showLineEndings':True,'showTabs':True,'showWhitespaceErrors':True,'skipDeleted':False,'skipUncommented':False,'syntaxHighlighting':True,'tabSize':8}
-
-body = {'jsonrpc': '2.0', 'method': 'patchScript', 'params': [pid, None, cid, args], 'id':1 }
-body = json.dumps(body)
-print body
-response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/PatchDetailService', 'POST', body, headers)
-print content
-
+patch_sets = retrieve_patchsets(84933)
+patchset_id = patch_sets[0]['id']
+patches = retrieve_patchset_details(patchset_id)
+patch_key = patches[0]['key']
+patch = retrieve_patch(patchset_id, patch_key)
+print patch
