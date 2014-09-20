@@ -1,3 +1,4 @@
+import sys
 import json
 import httplib2
 import collections
@@ -51,6 +52,15 @@ def retrieve_diff(patchset_id, patch_key):
     #return data
     return data['result']
 
+def get_accounts_map(accounts):
+    result = {}
+    for account in accounts:
+        if account.has_key('fullName'):
+            acc_id = account['id']['id']
+            name = account['fullName']
+            result[acc_id] = name
+    return result
+
 class Change(object):
     def __init__(self):
         self.patchsets = []
@@ -97,35 +107,48 @@ def fetch(change_id):
         if not raw_patches:
             continue
         patchset = PatchSet()
-        patchset.id = 3#'todo'
+        patchset.id = patchset_id['patchSetId']
         for raw_patch in raw_patches:
             patch_key = raw_patch['key']
             raw_diff = retrieve_diff(patchset_id, patch_key)
             f = File()
             f.name = patch_key['fileName']
+            accounts = get_accounts_map(raw_diff['comments']['accounts']['accounts'])
             left_comments = raw_diff['comments']['a']
             for comment in left_comments:
                 cmt = Comment()
                 cmt.message = comment['message']
                 line_number = comment['lineNbr']
+                author_id = comment['author']['id']
+                cmt.author = accounts[author_id]
                 f.left_comments[line_number].append(cmt)
             right_comments = raw_diff['comments']['b']
             for comment in right_comments:
                 cmt = Comment()
                 cmt.message = comment['message']
                 line_number = comment['lineNbr']
+                author_id = comment['author']['id']
+                cmt.author = accounts[author_id]
                 f.right_comments[line_number].append(cmt)
             patchset.files.append(f)
         change.patchsets.append(patchset)
-
-    #patchset_id = patch_sets[0]['id']
-    #patches = retrieve_patchset_details(patchset_id)
-    #patch_key = patches[0]['key']
-    #patch = retrieve_patch(patchset_id, patch_key)
-    #print patch
-
     return change
 
 #print fetch(84933)
-print fetch(83207)
+#fetch(83207) # patch with many sets
+
+c = fetch(83207)
+print c.id
+for patchset in c.patchsets:
+    print " PatchSet:", patchset.id
+    for f in patchset.files:
+        print "  File:", f.name
+        for ln, comments in f.left_comments.iteritems():
+            print "   Line number:", ln
+            for comment in comments:
+                print "    [%s] %s" % (comment.author, comment.message)
+        for ln, comments in f.right_comments.iteritems():
+            print "   Line number:", ln
+            for comment in comments:
+                print "    [%s] %s" % (comment.author, comment.message)
 
