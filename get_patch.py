@@ -1,6 +1,7 @@
 import sys
 import json
 import httplib2
+import textwrap
 import collections
 
 #comment on new+old code:
@@ -65,16 +66,17 @@ class Change(object):
     def __init__(self):
         self.patchsets = []
 
-    def __str__(self):
-        #return "[id: %d, createdOn: %s, patchsets: %s]" % (self.id, self.created_on, ",".join([str(x) for x in self.patchsets]))
-        return "[id: %d, createdOn: %s, patchsets: %s]" % (self.id, self.created_on, self.patchsets)
+    def dump(self, indent=0):
+        space = ' ' * indent
+        print "%sChange: %d" % (space, self.id)
 
 class PatchSet(object):
     def __init__(self):
         self.files = []
-    def __repr__(self):
-        #return "[id: %d, files: %s]" % (self.id, ",".join([str(x) for x in self.files]))
-        return "[id: %d, files: %s]" % (self.id, self.files)
+
+    def dump(self, indent=1):
+        space = ' ' * indent
+        print "%sPatchSet: %d" % (space, self.id)
 
 class File(object):
     def __init__(self):
@@ -84,12 +86,28 @@ class File(object):
         # TODO: map a line number to its source code
         # self.left_source = {}
         # self.right_source = {}
-    def __repr__(self):
-        return "[name: %s, left_comments: %s, right_comments: %s]" % (self.name, self.left_comments, self.right_comments)
+
+    def dump(self, indent=2):
+        space1 = ' ' * indent
+        space2 = space1 + ' '
+        print "%sFile: %s" % (space1, self.name)
+        for ln, comments in self.left_comments.iteritems():
+            print "%sLine number: %d" % (space2, ln)
+            for comment in comments:
+                comment.dump(indent + 2)
+        for ln, comments in self.right_comments.iteritems():
+            print "%sLine number: %d" % (space2, ln)
+            for comment in comments:
+                comment.dump(indent + 2)
 
 class Comment(object):
-    def __repr__(self):
-        return "[message: %s]" % (self.message)
+    def dump(self, indent=4):
+        space = ' ' * indent
+        prefix = '%s[%s] ' % (space, self.author)
+        wrapper = textwrap.TextWrapper(initial_indent=prefix,
+                                       width=80,
+                                       subsequent_indent=' ' * len(prefix))
+        print wrapper.fill(self.message)
 
 def fetch(change_id):
     change = Change()
@@ -97,7 +115,7 @@ def fetch(change_id):
     change.id = change_id
     change.subject = raw_change['change']['subject']
     change.created_on = raw_change['change']['createdOn']
-
+    change.dump()
     raw_patchsets = raw_change['patchSets']
     for raw_patchset in raw_patchsets:
         patchset_id = raw_patchset['id']
@@ -130,25 +148,16 @@ def fetch(change_id):
                 author_id = comment['author']['id']
                 cmt.author = accounts[author_id]
                 f.right_comments[line_number].append(cmt)
+            f.dump()
             patchset.files.append(f)
+        patchset.dump()
         change.patchsets.append(patchset)
     return change
 
-#print fetch(84933)
-#fetch(83207) # patch with many sets
-
-c = fetch(83207)
-print c.id
-for patchset in c.patchsets:
-    print " PatchSet:", patchset.id
-    for f in patchset.files:
-        print "  File:", f.name
-        for ln, comments in f.left_comments.iteritems():
-            print "   Line number:", ln
-            for comment in comments:
-                print "    [%s] %s" % (comment.author, comment.message)
-        for ln, comments in f.right_comments.iteritems():
-            print "   Line number:", ln
-            for comment in comments:
-                print "    [%s] %s" % (comment.author, comment.message)
+#c = fetch(83207)
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'Usage: %s <patch#>' % sys.argv[0]
+        sys.exit(1)
+    fetch(int(sys.argv[1]))
 
