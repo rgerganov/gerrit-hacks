@@ -53,15 +53,6 @@ def retrieve_diff(patchset_id, patch_key):
     #return data
     return data['result']
 
-def get_accounts_map(accounts):
-    result = {}
-    for account in accounts:
-        if account.has_key('fullName'):
-            acc_id = account['id']['id']
-            name = account['fullName']
-            result[acc_id] = name
-    return result
-
 class Change(object):
     def __init__(self):
         self.patchsets = []
@@ -83,20 +74,21 @@ class File(object):
         # map a line number to its comments
         self.left_comments = collections.defaultdict(list)
         self.right_comments = collections.defaultdict(list)
-        # TODO: map a line number to its source code
-        # self.left_source = {}
-        # self.right_source = {}
+        self.left_source = {}
+        self.right_source = {}
 
     def dump(self, indent=2):
         space1 = ' ' * indent
         space2 = space1 + ' '
         print "%sFile: %s" % (space1, self.name)
-        for ln, comments in self.left_comments.iteritems():
-            print "%sLine number: %d" % (space2, ln)
+        od = collections.OrderedDict(sorted(self.left_comments.items()))
+        for ln, comments in od.iteritems():
+            print "%s%d: %s" % (space2, ln, self.left_source[ln])
             for comment in comments:
                 comment.dump(indent + 2)
-        for ln, comments in self.right_comments.iteritems():
-            print "%sLine number: %d" % (space2, ln)
+        od = collections.OrderedDict(sorted(self.right_comments.items()))
+        for ln, comments in od.iteritems():
+            print "%s%d: %s" % (space2, ln, self.right_source[ln])
             for comment in comments:
                 comment.dump(indent + 2)
 
@@ -108,6 +100,24 @@ class Comment(object):
                                        width=80,
                                        subsequent_indent=' ' * len(prefix))
         print wrapper.fill(self.message)
+
+def get_accounts_map(accounts):
+    result = {}
+    for account in accounts:
+        if account.has_key('fullName'):
+            acc_id = account['id']['id']
+            name = account['fullName']
+            result[acc_id] = name
+    return result
+
+def get_line(ranges, line_number):
+    for rng in ranges:
+        base = rng['base']
+        lines = rng['lines']
+        #print '>>>', line_number, base, len(lines), line_number > base and base + len(lines) >= line_number
+        if line_number > base and base + len(lines) >= line_number:
+            offset = line_number - base - 1
+            return lines[offset]
 
 def fetch(change_id):
     change = Change()
@@ -126,12 +136,15 @@ def fetch(change_id):
             continue
         patchset = PatchSet()
         patchset.id = patchset_id['patchSetId']
+        patchset.dump()
         for raw_patch in raw_patches:
             patch_key = raw_patch['key']
             raw_diff = retrieve_diff(patchset_id, patch_key)
             f = File()
             f.name = patch_key['fileName']
             accounts = get_accounts_map(raw_diff['comments']['accounts']['accounts'])
+            ranges_a = raw_diff['a']['ranges']
+            ranges_b = raw_diff['b']['ranges']
             left_comments = raw_diff['comments']['a']
             for comment in left_comments:
                 cmt = Comment()
@@ -140,6 +153,7 @@ def fetch(change_id):
                 author_id = comment['author']['id']
                 cmt.author = accounts[author_id]
                 f.left_comments[line_number].append(cmt)
+                f.left_source[line_number] = get_line(ranges_a, line_number)
             right_comments = raw_diff['comments']['b']
             for comment in right_comments:
                 cmt = Comment()
@@ -148,13 +162,17 @@ def fetch(change_id):
                 author_id = comment['author']['id']
                 cmt.author = accounts[author_id]
                 f.right_comments[line_number].append(cmt)
+                line = get_line(ranges_b, line_number)
+                #if line is None:
+                #    line = get_line(ranges_a, line_number)
+                f.right_source[line_number] = line
             f.dump()
             patchset.files.append(f)
-        patchset.dump()
         change.patchsets.append(patchset)
     return change
 
 #c = fetch(83207)
+#httplib2.debuglevel=1
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print 'Usage: %s <patch#>' % sys.argv[0]
