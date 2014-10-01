@@ -4,22 +4,6 @@ import httplib2
 import textwrap
 import collections
 
-#comment on new+old code:
-#https://review.openstack.org/#/c/90970/1/nova/conductor/manager.py
-#
-#comments on a new file:
-#https://review.openstack.org/#/c/84933/1/os_cloud_config/cmd/register_nodes.py
-
-#https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService
-#{"jsonrpc":"2.0","method":"changeDetail","params":[{"id":84933}],"id":4}
-
-#https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService
-#{"jsonrpc":"2.0","method":"patchSetDetail","params":[{"changeId":{"id":84933},"patchSetId":1}],"id":2}
-
-#https://review.openstack.org/gerrit_ui/rpc/PatchDetailService
-#{"jsonrpc":"2.0","method":"patchScript","params":[{"fileName":"os_cloud_config/cmd/register_nodes.py","patchSetId":{"changeId":{"id":84933},"patchSetId":1}},null,{"changeId":{"id":84933},"patchSetId":1},{"context":10,"expandAllComments":false,"ignoreWhitespace":"N","intralineDifference":true,"lineLength":100,"manualReview":false,"retainHeader":false,"showLineEndings":true,"showTabs":true,"showWhitespaceErrors":true,"skipDeleted":false,"skipUncommented":false,"syntaxHighlighting":true,"tabSize":8}],"id":3}
-
-
 http = httplib2.Http(disable_ssl_certificate_validation=True)
 
 headers = {
@@ -32,7 +16,6 @@ def retrieve_change(change_id):
     body = json.dumps(body)
     response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
     data = json.loads(content)
-    #return data['result']['patchSets']
     return data['result']
 
 def retrieve_patchset(patchset_id):
@@ -40,8 +23,6 @@ def retrieve_patchset(patchset_id):
     body = json.dumps(body)
     response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
     data = json.loads(content)
-    #patches = [patch for patch in data['result']['patches'] if patch['nbrComments'] > 0]
-    #return patches
     return data['result']
 
 def retrieve_diff(patchset_id, patch_key):
@@ -50,7 +31,6 @@ def retrieve_diff(patchset_id, patch_key):
     body = json.dumps(body)
     response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/PatchDetailService', 'POST', body, headers)
     data = json.loads(content)
-    #return data
     return data['result']
 
 class Change(object):
@@ -71,11 +51,11 @@ class PatchSet(object):
 
 class File(object):
     def __init__(self):
-        # map a line number to its comments
+        # map a line number to a list of comments
         self.left_comments = collections.defaultdict(list)
         self.right_comments = collections.defaultdict(list)
-        self.left_source = {}
-        self.right_source = {}
+        self.left_source = []
+        self.right_source = []
 
     def dump(self, indent=2):
         space1 = ' ' * indent
@@ -83,12 +63,12 @@ class File(object):
         print "%sFile: %s" % (space1, self.name)
         od = collections.OrderedDict(sorted(self.left_comments.items()))
         for ln, comments in od.iteritems():
-            print "%s%d: %s" % (space2, ln, self.left_source[ln])
+            print "%s%d: %s" % (space2, ln, self.left_source[ln-1])
             for comment in comments:
                 comment.dump(indent + 2)
         od = collections.OrderedDict(sorted(self.right_comments.items()))
         for ln, comments in od.iteritems():
-            print "%s%d: %s" % (space2, ln, self.right_source[ln])
+            print "%s%d: %s" % (space2, ln, self.right_source[ln-1])
             for comment in comments:
                 comment.dump(indent + 2)
 
@@ -110,14 +90,16 @@ def get_accounts_map(accounts):
             result[acc_id] = name
     return result
 
-def get_line(ranges, line_number):
-    for rng in ranges:
-        base = rng['base']
-        lines = rng['lines']
-        #print '>>>', line_number, base, len(lines), line_number > base and base + len(lines) >= line_number
-        if line_number > base and base + len(lines) >= line_number:
-            offset = line_number - base - 1
-            return lines[offset]
+def compute_right_source(left_source, edits, right_ranges):
+    result = list(left_source)
+    for edit in edits:
+        x1, y1, x2, y2 = edit[0:4]
+        result[x1:y1] = result[x2:y2]
+    for range in right_ranges:
+        base = range['base']
+        lines = range['lines']
+        result[base:base+len(lines)] = lines
+    return result
 
 def fetch(change_id):
     change = Change()
@@ -143,8 +125,13 @@ def fetch(change_id):
             f = File()
             f.name = patch_key['fileName']
             accounts = get_accounts_map(raw_diff['comments']['accounts']['accounts'])
-            ranges_a = raw_diff['a']['ranges']
-            ranges_b = raw_diff['b']['ranges']
+            left_ranges = raw_diff['a']['ranges']
+            if left_ranges:
+                f.left_source = left_ranges[0]['lines']
+            edits = raw_diff['edits']
+            right_ranges = raw_diff['b']['ranges']
+            f.right_source = compute_right_source(f.left_source, edits, right_ranges)
+
             left_comments = raw_diff['comments']['a']
             for comment in left_comments:
                 cmt = Comment()
@@ -153,7 +140,6 @@ def fetch(change_id):
                 author_id = comment['author']['id']
                 cmt.author = accounts[author_id]
                 f.left_comments[line_number].append(cmt)
-                f.left_source[line_number] = get_line(ranges_a, line_number)
             right_comments = raw_diff['comments']['b']
             for comment in right_comments:
                 cmt = Comment()
@@ -162,10 +148,6 @@ def fetch(change_id):
                 author_id = comment['author']['id']
                 cmt.author = accounts[author_id]
                 f.right_comments[line_number].append(cmt)
-                line = get_line(ranges_b, line_number)
-                #if line is None:
-                #    line = get_line(ranges_a, line_number)
-                f.right_source[line_number] = line
             f.dump()
             patchset.files.append(f)
         change.patchsets.append(patchset)
