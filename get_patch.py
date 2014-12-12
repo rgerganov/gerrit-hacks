@@ -6,6 +6,9 @@ import collections
 
 http = httplib2.Http(disable_ssl_certificate_validation=True)
 
+#BASE_URL = 'https://review.openstack.org'
+BASE_URL = 'http://gerrit-mirror.appspot.com'
+
 headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json; charset=UTF-8',
@@ -14,14 +17,14 @@ headers = {
 def retrieve_change(change_id):
     body = {'jsonrpc': '2.0', 'method': 'changeDetail', 'params': [{'id' : change_id}], 'id':1 }
     body = json.dumps(body)
-    response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
+    response, content = http.request(BASE_URL + '/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
     data = json.loads(content)
     return data['result']
 
 def retrieve_patchset(patchset_id):
     body = {'jsonrpc': '2.0', 'method': 'patchSetDetail', 'params': [patchset_id], 'id':1 }
     body = json.dumps(body)
-    response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
+    response, content = http.request(BASE_URL + '/gerrit_ui/rpc/ChangeDetailService', 'POST', body, headers)
     data = json.loads(content)
     return data['result']
 
@@ -29,7 +32,7 @@ def retrieve_diff(patchset_id, patch_key):
     args = {'context':10,'expandAllComments':False,'ignoreWhitespace':'N','intralineDifference':True,'lineLength':100,'manualReview':False,'retainHeader':False,'showLineEndings':True,'showTabs':True,'showWhitespaceErrors':True,'skipDeleted':False,'skipUncommented':False,'syntaxHighlighting':True,'tabSize':8}
     body = {'jsonrpc': '2.0', 'method': 'patchScript', 'params': [patch_key, None, patchset_id, args], 'id':1 }
     body = json.dumps(body)
-    response, content = http.request('https://review.openstack.org/gerrit_ui/rpc/PatchDetailService', 'POST', body, headers)
+    response, content = http.request(BASE_URL + '/gerrit_ui/rpc/PatchDetailService', 'POST', body, headers)
     data = json.loads(content)
     return data['result']
 
