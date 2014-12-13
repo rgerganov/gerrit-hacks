@@ -25,12 +25,73 @@ div p {
 </style>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script>
+function getAccountsMap(accounts) {
+    var result = {};
+    for (var i = 0 ; i < accounts.length ; i++) {
+        var account = accounts[i];
+        if ('fullName' in account) {
+            var accId = account.id.id;
+            result[accId] = account.fullName;
+        }
+    }
+    return result;
+}
+
+function showComments(fileDiv, lineNbr, comments, accounts) {
+    var lineDiv = jQuery('<div/>', {
+        'class': 'line'
+    });
+    lineDiv.append("<p>" + lineNbr + ": </p>");
+    fileDiv.append(lineDiv);
+    for (var i = 0 ; i < comments.length ; i++) {
+        var comment = comments[i];
+        var cmtDiv = jQuery('<div/>', {
+            'class': 'comment'
+        });
+        var author = accounts[comment.author.id];
+        cmtDiv.append("<p>[" + author + "] " + comment.message + "</p>");
+        lineDiv.append(cmtDiv);
+    }
+}
+
 function onDiffReady(patchSetDiv, patchKey, result) {
     var fileDiv = jQuery('<div/>', {
         'class': 'file'
     });
     fileDiv.append("<p>" + patchKey.fileName + "</p>");
     patchSetDiv.append(fileDiv);
+    var accounts = getAccountsMap(result.comments.accounts.accounts);
+    var leftComments = {};
+    var rightComments = {};
+    for (var i = 0 ; i < result.comments.a.length ; i++) {
+        var comment = result.comments.a[i];
+        var lineNbr = parseInt(comment.lineNbr);
+        var lineComments = leftComments[lineNbr] || [];
+        lineComments.push(comment);
+        leftComments[lineNbr] = lineComments;
+    }
+    for (var i = 0 ; i < result.comments.b.length ; i++) {
+        var comment = result.comments.b[i];
+        var lineNbr = parseInt(comment.lineNbr);
+        var lineComments = rightComments[lineNbr] || [];
+        lineComments.push(comment);
+        rightComments[lineNbr] = lineComments;
+    }
+    var keys = [];
+    for (k in leftComments) if (leftComments.hasOwnProperty(k)) keys.push(k);
+    for (k in rightComments) if (rightComments.hasOwnProperty(k)) keys.push(k);
+    keys.sort();
+    for (var i = 0 ; i < keys.length ; i++) {
+        lineNbr = keys[i];
+        if (lineNbr in leftComments) {
+            var comments = leftComments[lineNbr];
+            showComments(fileDiv, lineNbr, comments, accounts);
+        }
+        if (lineNbr in rightComments) {
+            var comments = rightComments[lineNbr];
+            showComments(fileDiv, lineNbr, comments, accounts);
+        }
+    }
 }
 
 function onPatchSetReady(changeDiv, patchSetId, result) {
@@ -52,7 +113,7 @@ function onPatchSetReady(changeDiv, patchSetId, result) {
             onDiffReady(patchSetDiv, patchKey, result['result']);
         }
     }
-    patchSetDiv.append("<p>" + patchSetId.patchSetId + "</p>");
+    patchSetDiv.append("<p> PatchSet " + patchSetId.patchSetId + "</p>");
     changeDiv.append(patchSetDiv);
     for (var i = 0 ; i < cmt_patches.length ; i++) {
         var patch = cmt_patches[i];
@@ -136,6 +197,7 @@ $(document).ready(function(){
 <body>
 <p id="usage">Usage: http://gerrit-mirror.appspot.com/&lt;change_id&gt;</p>
 <div id="main">
+    <!--
     <div class="change">
         <p>Change: 141065</p>
         <div class="patchset">
@@ -153,6 +215,7 @@ $(document).ready(function(){
             </div>
         </div>
     </div>
+    -->
 </div>
 </body>
 </html>
