@@ -44,13 +44,13 @@ function onPatchSetReady(changeDiv, result) {
 }
 
 function onChangeReady(result) {
-    var subject = result['result']['change']['subject'];
+    var subject = result.change.subject;
     var changeDiv = jQuery('<div/>', {
         'class': 'change'
     });
     changeDiv.append("<p>Change: " + subject + "</p>")
     $("#main").append(changeDiv)
-    var patchSets = result['result']['patchSets']
+    var patchSets = result.patchSets
     for (var i = 0 ; i < patchSets.length; i++) {
         var patchSetId = patchSets[i].id;
         var req = {jsonrpc: "2.0",
@@ -63,7 +63,7 @@ function onChangeReady(result) {
             url: '/gerrit_ui/rpc/ChangeDetailService', 
             data: JSON.stringify(req),
             success: function(result) {
-                onPatchSetReady(changeDiv, result['result'])
+                onPatchSetReady(changeDiv, result['result']);
             }
         });
     }
@@ -82,7 +82,9 @@ $(document).ready(function(){
         contentType: 'application/json',
         url: '/gerrit_ui/rpc/ChangeDetailService', 
         data: JSON.stringify(req),
-        success: onChangeReady
+        success: function(result) {
+            onChangeReady(result['result']);
+        }
     });
 });
 </script>
