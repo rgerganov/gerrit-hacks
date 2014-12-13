@@ -25,7 +25,15 @@ div p {
 </style>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script>
-function onPatchSetReady(changeDiv, result) {
+function onDiffReady(patchSetDiv, patchKey, result) {
+    var fileDiv = jQuery('<div/>', {
+        'class': 'file'
+    });
+    fileDiv.append("<p>" + patchKey.fileName + "</p>");
+    patchSetDiv.append(fileDiv);
+}
+
+function onPatchSetReady(changeDiv, patchSetId, result) {
     var patches = result.patches;
     var cmt_patches = []; // patches with comments
     for (var i = 0 ; i < patches.length ; i++) {
@@ -39,18 +47,56 @@ function onPatchSetReady(changeDiv, result) {
     var patchSetDiv = jQuery('<div/>', {
         'class': 'patchset'
     });
-    patchSetDiv.append("<p>fira</p>"); // todo: print patchSetId here
+    var makeCallback = function(patchKey) {
+        return function(result) {
+            onDiffReady(patchSetDiv, patchKey, result['result']);
+        }
+    }
+    patchSetDiv.append("<p>" + patchSetId.patchSetId + "</p>");
     changeDiv.append(patchSetDiv);
+    for (var i = 0 ; i < cmt_patches.length ; i++) {
+        var patch = cmt_patches[i];
+        var args = {context:10,
+                    expandAllComments:false,
+                    ignoreWhitespace:'N',
+                    intralineDifference:true,
+                    lineLength:100,
+                    manualReview:false,
+                    retainHeader:false,
+                    showLineEndings:true,
+                    showTabs:true,
+                    showWhitespaceErrors:true,
+                    skipDeleted:false,
+                    skipUncommented:false,
+                    syntaxHighlighting:true,
+                    tabSize:8};
+        var req = {jsonrpc: "2.0",
+                   method: "patchScript",
+                   params: [patch.key, null, patchSetId, args],
+                   id:1};
+        $.ajax({
+            type: 'POST',
+            contentType: 'application/json',
+            url: '/gerrit_ui/rpc/PatchDetailService', 
+            data: JSON.stringify(req),
+            success: makeCallback(patch.key)
+        });
+    }
 }
 
 function onChangeReady(result) {
     var subject = result.change.subject;
+    var patchSets = result.patchSets
     var changeDiv = jQuery('<div/>', {
         'class': 'change'
     });
+    var makeCallback = function(patchSetId) {
+        return function(result) {
+            onPatchSetReady(changeDiv, patchSetId, result['result']);
+        }
+    }
     changeDiv.append("<p>Change: " + subject + "</p>")
     $("#main").append(changeDiv)
-    var patchSets = result.patchSets
     for (var i = 0 ; i < patchSets.length; i++) {
         var patchSetId = patchSets[i].id;
         var req = {jsonrpc: "2.0",
@@ -62,9 +108,7 @@ function onChangeReady(result) {
             contentType: 'application/json',
             url: '/gerrit_ui/rpc/ChangeDetailService', 
             data: JSON.stringify(req),
-            success: function(result) {
-                onPatchSetReady(changeDiv, result['result']);
-            }
+            success: makeCallback(patchSetId)
         });
     }
 }
