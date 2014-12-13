@@ -1,14 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
+<style>
+.change {
+    margin-left: 5px;
+}
+.patchset {
+    margin-left: 15px;
+}
+.file {
+    margin-left: 15px;
+}
+.line {
+    margin-left: 15px;
+}
+.comment {
+    margin-left: 15px;
+}
+div p {
+    margin-top: 1px;
+    margin-bottom: 1px;
+}
+
+</style>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script>
+function onPatchSetReady(changeDiv, result) {
+    var patches = result.patches;
+    var cmt_patches = []; // patches with comments
+    for (var i = 0 ; i < patches.length ; i++) {
+        if (patches[i].nbrComments > 0) {
+            cmt_patches.push(patches[i]);
+        }
+    }
+    if (cmt_patches.length == 0) {
+        return;
+    }
+    var patchSetDiv = jQuery('<div/>', {
+        'class': 'patchset'
+    });
+    patchSetDiv.append("<p>fira</p>"); // todo: print patchSetId here
+    changeDiv.append(patchSetDiv);
+}
+
+function onChangeReady(result) {
+    var subject = result['result']['change']['subject'];
+    var changeDiv = jQuery('<div/>', {
+        'class': 'change'
+    });
+    changeDiv.append("<p>Change: " + subject + "</p>")
+    $("#main").append(changeDiv)
+    var patchSets = result['result']['patchSets']
+    for (var i = 0 ; i < patchSets.length; i++) {
+        var patchSetId = patchSets[i].id;
+        var req = {jsonrpc: "2.0",
+                   method: "patchSetDetail",
+                   params: [patchSetId],
+                   id:1};
+        $.ajax({
+            type: 'POST',
+            contentType: 'application/json',
+            url: '/gerrit_ui/rpc/ChangeDetailService', 
+            data: JSON.stringify(req),
+            success: function(result) {
+                onPatchSetReady(changeDiv, result['result'])
+            }
+        });
+    }
+}
+
 $(document).ready(function(){
     var path = window.location.pathname;
     if (! /^\/\d+$/.test(path) ) {
         return;
     }
-    $("p").hide();
+    $("#usage").hide();
     var changeId = parseInt(path.substring(1));
     var req = {jsonrpc: "2.0", method: "changeDetail", params: [{id : changeId}], id:1 };
     $.ajax({
@@ -16,13 +82,32 @@ $(document).ready(function(){
         contentType: 'application/json',
         url: '/gerrit_ui/rpc/ChangeDetailService', 
         data: JSON.stringify(req),
-        success: function(result) { alert("Data: " + result['result']['change']['subject']); }
+        success: onChangeReady
     });
 });
 </script>
 </head>
 <body>
-<p>Usage: http://gerrit-mirror.appspot.com/&lt;change_id&gt;</p>
+<p id="usage">Usage: http://gerrit-mirror.appspot.com/&lt;change_id&gt;</p>
+<div id="main">
+    <div class="change">
+        <p>Change: 141065</p>
+        <div class="patchset">
+            <p>PatchSet: 1</p>
+            <div class="file">
+                <p>File: specs/kilo/approved/blah.rst</p>
+                <div class="line">
+                    <p>65:    "os-getConsole" : {</p>
+                    <div class="comment">
+                        <p>[Author 1] Blah blah blah</p>
+                        <p>[Author 2] Niah niah niah</p>
+                        <p>[Author 3] fira fira fira</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
 
