@@ -2,6 +2,25 @@
 <html>
 <head>
 <style>
+.modal {
+    display:    none;
+    position:   fixed;
+    z-index:    1000;
+    top:        0;
+    left:       0;
+    height:     100%;
+    width:      100%;
+    background: rgba( 255, 255, 255, .8 ) 
+                url('http://i.stack.imgur.com/FhHRx.gif') 
+                50% 50% 
+                no-repeat;
+}
+body.loading {
+    overflow: hidden;   
+}
+body.loading .modal {
+    display: block;
+}
 .change {
     font-family: sans-serif;
     font-size: 15px;
@@ -207,6 +226,11 @@ function onChangeReady(result) {
     }
 }
 
+$(document).on({
+    ajaxStart: function() { $('body').addClass("loading");    },
+    ajaxStop: function() { $('body').removeClass("loading"); }    
+});
+
 $(document).ready(function(){
     var path = window.location.pathname;
     if (! /^\/\d+$/.test(path) ) {
@@ -229,6 +253,7 @@ $(document).ready(function(){
 </head>
 <body>
 <p id="usage">Usage: http://gerrit-mirror.appspot.com/&lt;change_id&gt;</p>
+<div class="modal"></div>
 <div id="main">
 </div>
 </body>
