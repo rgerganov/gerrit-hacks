@@ -126,7 +126,7 @@ function onDiffReady(patchSetDiv, patchKey, result) {
     }
 }
 
-function onPatchSetReady(changeDiv, patchSetId, result) {
+function onPatchSetReady(patchSetDiv, patchSetId, result) {
     var patches = result.patches;
     var cmt_patches = []; // patches with comments
     for (var i = 0 ; i < patches.length ; i++) {
@@ -137,7 +137,6 @@ function onPatchSetReady(changeDiv, patchSetId, result) {
     if (cmt_patches.length == 0) {
         return;
     }
-    var patchSetDiv = $('<div/>', {'class': 'nested'});
     var makeCallback = function(patchKey) {
         return function(result) {
             onDiffReady(patchSetDiv, patchKey, result['result']);
@@ -145,7 +144,6 @@ function onPatchSetReady(changeDiv, patchSetId, result) {
     }
     var patchSetText = "PatchSet " + patchSetId.patchSetId;
     patchSetDiv.append($('<p/>', {text: patchSetText, 'class': 'patchset'}));
-    changeDiv.append(patchSetDiv);
     for (var i = 0 ; i < cmt_patches.length ; i++) {
         var patch = cmt_patches[i];
         var args = {context:10,
@@ -180,9 +178,9 @@ function onChangeReady(result) {
     var subject = result.change.subject;
     var patchSets = result.patchSets
     var changeDiv = $('<div/>', {'class': 'nested'});
-    var makeCallback = function(patchSetId) {
+    var makeCallback = function(patchSetDiv, patchSetId) {
         return function(result) {
-            onPatchSetReady(changeDiv, patchSetId, result['result']);
+            onPatchSetReady(patchSetDiv, patchSetId, result['result']);
         }
     }
     var changeText = "Change: " + subject;
@@ -194,12 +192,14 @@ function onChangeReady(result) {
                    method: "patchSetDetail",
                    params: [patchSetId],
                    id:1};
+        var patchSetDiv = $('<div/>', {'class': 'nested'});
+        changeDiv.append(patchSetDiv);
         $.ajax({
             type: 'POST',
             contentType: 'application/json',
             url: '/gerrit_ui/rpc/ChangeDetailService', 
             data: JSON.stringify(req),
-            success: makeCallback(patchSetId)
+            success: makeCallback(patchSetDiv, patchSetId)
         });
     }
 }
