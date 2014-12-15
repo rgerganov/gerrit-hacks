@@ -37,30 +37,46 @@ function getAccountsMap(accounts) {
     return result;
 }
 
-function showComments(fileDiv, lineNbr, comments, accounts) {
-    var lineDiv = jQuery('<div/>', {
-        'class': 'line'
-    });
-    lineDiv.append("<p>" + lineNbr + ": </p>");
+function showComments(fileDiv, lineNbr, line, comments, accounts) {
+    var lineDiv = $('<div/>', {'class': 'line'});
+    var lineText = lineNbr + ": " + line;
+    lineDiv.append($('<p/>', {text: lineText}));
     fileDiv.append(lineDiv);
     for (var i = 0 ; i < comments.length ; i++) {
         var comment = comments[i];
-        var cmtDiv = jQuery('<div/>', {
-            'class': 'comment'
-        });
+        var cmtDiv = $('<div/>', {'class': 'comment'});
         var author = accounts[comment.author.id];
-        cmtDiv.append("<p>[" + author + "] " + comment.message + "</p>");
+        var cmtText = "[" + author + "] " + comment.message;
+        cmtDiv.append($('<p/>', {text: cmtText}));
         lineDiv.append(cmtDiv);
     }
 }
 
+function computeRightSource(leftSource, edits, rightRanges) {
+    var result = leftSource.slice();
+    for (var i = 0 ; i < edits.length ; i++) {
+        var edit = edits[i];
+        var x1 = edit[0], y1 = edit[1], x2 = edit[2], y2 = edit[3];
+        var tmp = result.slice(x2, y2);
+        var args = [x1, y1-x1].concat(tmp);
+        Array.prototype.splice.apply(result, args);
+    }
+    for (var i = 0 ; i < rightRanges.length ; i++) {
+        var range = rightRanges[i];
+        var args = [range.base, 0].concat(range.lines);
+        Array.prototype.splice.apply(result, args);
+    }
+    return result;
+}
+
 function onDiffReady(patchSetDiv, patchKey, result) {
-    var fileDiv = jQuery('<div/>', {
-        'class': 'file'
-    });
-    fileDiv.append("<p>" + patchKey.fileName + "</p>");
+    var fileDiv = $('<div/>', {'class': 'file'});
+    var fileText = patchKey.fileName;
+    fileDiv.append($('<p/>', {text:fileText}));
     patchSetDiv.append(fileDiv);
     var accounts = getAccountsMap(result.comments.accounts.accounts);
+    var leftSource = result.a.ranges.length > 0 ? result.a.ranges[0].lines : [];
+    var rightSource = computeRightSource(leftSource, result.edits, result.b.ranges);
     var leftComments = {};
     var rightComments = {};
     for (var i = 0 ; i < result.comments.a.length ; i++) {
@@ -85,11 +101,13 @@ function onDiffReady(patchSetDiv, patchKey, result) {
         lineNbr = keys[i];
         if (lineNbr in leftComments) {
             var comments = leftComments[lineNbr];
-            showComments(fileDiv, lineNbr, comments, accounts);
+            var line = leftSource[lineNbr-1];
+            showComments(fileDiv, lineNbr, line, comments, accounts);
         }
         if (lineNbr in rightComments) {
             var comments = rightComments[lineNbr];
-            showComments(fileDiv, lineNbr, comments, accounts);
+            var line = rightSource[lineNbr-1];
+            showComments(fileDiv, lineNbr, line, comments, accounts);
         }
     }
 }
@@ -105,15 +123,14 @@ function onPatchSetReady(changeDiv, patchSetId, result) {
     if (cmt_patches.length == 0) {
         return;
     }
-    var patchSetDiv = jQuery('<div/>', {
-        'class': 'patchset'
-    });
+    var patchSetDiv = $('<div/>', {'class': 'patchset'});
     var makeCallback = function(patchKey) {
         return function(result) {
             onDiffReady(patchSetDiv, patchKey, result['result']);
         }
     }
-    patchSetDiv.append("<p> PatchSet " + patchSetId.patchSetId + "</p>");
+    var patchSetText = "PatchSet " + patchSetId.patchSetId;
+    patchSetDiv.append($('<p/>', {text:patchSetText}));
     changeDiv.append(patchSetDiv);
     for (var i = 0 ; i < cmt_patches.length ; i++) {
         var patch = cmt_patches[i];
@@ -148,15 +165,14 @@ function onPatchSetReady(changeDiv, patchSetId, result) {
 function onChangeReady(result) {
     var subject = result.change.subject;
     var patchSets = result.patchSets
-    var changeDiv = jQuery('<div/>', {
-        'class': 'change'
-    });
+    var changeDiv = $('<div/>', {'class': 'change'});
     var makeCallback = function(patchSetId) {
         return function(result) {
             onPatchSetReady(changeDiv, patchSetId, result['result']);
         }
     }
-    changeDiv.append("<p>Change: " + subject + "</p>")
+    var changeText = "Change: " + subject;
+    changeDiv.append($('<p/>', {text:changeText}));
     $("#main").append(changeDiv)
     for (var i = 0 ; i < patchSets.length; i++) {
         var patchSetId = patchSets[i].id;
