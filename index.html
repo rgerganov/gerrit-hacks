@@ -5,6 +5,7 @@
 .change {
     font-family: sans-serif;
     font-size: 15px;
+    font-weight: bold;
 }
 .patchset {
     font-family: sans-serif;
@@ -175,7 +176,9 @@ function onPatchSetReady(patchSetDiv, patchSetId, result) {
 }
 
 function onChangeReady(result) {
+    var changeId = result.change.changeId.id;
     var subject = result.change.subject;
+    var message = result.currentDetail.info.message;
     var patchSets = result.patchSets
     var changeDiv = $('<div/>', {'class': 'nested'});
     var makeCallback = function(patchSetDiv, patchSetId) {
@@ -183,7 +186,7 @@ function onChangeReady(result) {
             onPatchSetReady(patchSetDiv, patchSetId, result['result']);
         }
     }
-    var changeText = "Change: " + subject;
+    var changeText = "#" + changeId + ": " + subject;
     changeDiv.append($('<p/>', {text: changeText, 'class': 'change'}));
     $("#main").append(changeDiv)
     for (var i = 0 ; i < patchSets.length; i++) {
